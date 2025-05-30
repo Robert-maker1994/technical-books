@@ -1,63 +1,87 @@
-  <!DOCTYPE html>
-   <html>
-   <head>
-       <title>Markdown Book Viewer</title>
-       <style>
-           body { font-family: sans-serif; line-height: 1.6; padding: 20px; max-width: 900px; margin: auto; }
-           .content { border: 1px solid #ddd; padding: 15px; background-color: #f9f9f9; }
-           ul { list-style-type: none; padding: 0; }
-           li a { text-decoration: none; color: #007bff; display: block; padding: 8px 0; border-bottom: 1px solid #eee; }
-           li a:hover { background-color: #f0f0f0; }
-           .error { color: red; font-weight: bold; }
-           .message { color: #555; }
-           .back-link { margin-bottom: 15px; display: flex; }
-       </style>
-   </head>
-   <body>
-        {% if error_message %}
-            <p class="error">Error: {{ error_message }}</p>
-            {% if current_book_name %}
-                 <p><a href="{{ url_for('index') }}">&laquo; Back to Book List</a></p>
-            {% endif %}
-        {% elif content and current_book_name and current_filename %}
-            <!-- Viewing a file's content -->
-            <p class="back-link"><a href="{{ url_for('list_files_in_book', book_name=current_book_name) }}">&laquo; Back to book:  {{ book_display_name }}</a></p>
-            <p class="back-link"><a href="{{ url_for('index') }}">&laquo; Back to Book List</a></p>
-            <h1>{{ book_display_name }} / {{ file_display_name }}</h1>
-            <hr>
-            <div class="content">{{ content | safe }}</div>
-        {% elif files is defined and current_book_name %}
-            <!-- Listing files in a book -->
-            <p class="back-link"><a href="{{ url_for('index') }}">&laquo; Back to Book List</a></p>
-            <h1>Book: {{ book_display_name }}</h1>
-            {% if files %}
-                <ul>
-                    {% for file_entry in files %}
-                        <li><a href="{{ url_for('view_file', book_name=current_book_name, filename=file_entry.id) }}">{{ file_entry.name }}</a></li>
-                    {% endfor %}
-                </ul>
-            {% elif no_files_message %}
-                 <p class="message">{{ no_files_message }}</p>
-            {% else %}
-                 <p class="message">No Markdown files found in this book.</p>
-            {% endif %}
-        {% elif books is defined %}
-            <!-- Listing available books -->
-            <h1>Available Books</h1>
-            {% if books %}
-                <ul>
-                    {% for book_name_raw in books %}
-                        <li><a href="{{ url_for('list_files_in_book', book_name=book_name_raw) }}">{{ book_name_raw | replace("_", " ") | title }}</a></li>
-                    {% endfor %}
-                </ul>
-            {% elif no_books_message %}
-                 <p class="message">{{ no_books_message }}</p>
-            {% else %}
-                 <p class="message">No books found in the specified directory.</p>
-            {% endif %}
-        {% else %}
-            <h1>Markdown Book Viewer</h1>
-            <p class="message">Welcome! If you see this, something might be misconfigured, or no books were found.</p>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Markdown File Browser</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; padding: 20px; max-width: 900px; margin: auto; }
+        .content-view { border: 1px solid #ddd; padding: 15px; background-color: #f9f9f9; margin-top: 10px; }
+        ul.item-list { list-style-type: none; padding: 0; }
+        .item-list li { padding: 8px 0; border-bottom: 1px solid #eee; display: flex; align-items: center; }
+        .item-list li:last-child { border-bottom: none; }
+        .item-list a { text-decoration: none; color: #007bff; }
+        .item-list a:hover { text-decoration: underline; }
+        .item-icon { margin-right: 8px; width: 1.2em; text-align: center; display: inline-block;}
+        .dir-icon::before { content: "📁"; } /* Folder emoji */
+        .md-file-icon::before { content: "📄"; } /* Document emoji */
+        .file-icon::before { content: "▫️"; } /* Generic file icon for non-MD files */
+        .error { color: red; font-weight: bold; }
+        .message { color: #555; }
+        .breadcrumbs { margin-bottom: 20px; font-size: 0.9em; color: #555; }
+        .breadcrumbs a { color: #007bff; text-decoration: none; }
+        .breadcrumbs a:hover { text-decoration: underline; }
+        .breadcrumbs span:not(:last-child)::after { content: " / "; padding: 0 5px; color: #888; }
+    </style>
+</head>
+<body>
+    <div class="breadcrumbs">
+        {% if breadcrumbs %}
+            {% for crumb in breadcrumbs %}
+                <span>
+                    {# Link all breadcrumbs except the very last one if we are viewing a file #}
+                    {# For directory listing, all breadcrumbs are links #}
+                    {% if is_listing or not loop.last %}
+                        <a href="{{ url_for('browse_directory', sub_path=crumb.path) }}">{{ crumb.name }}</a>
+                    {% else %}
+                         {# Last breadcrumb when viewing a file (parent directory) should still be a link #}
+                         {% if not is_listing and loop.last %}
+                            <a href="{{ url_for('browse_directory', sub_path=crumb.path) }}">{{ crumb.name }}</a>
+                         {% else %}
+                            {{ crumb.name }} {# Should not happen often with current logic #}
+                         {% endif %}
+                    {% endif %}
+                </span>
+            {% endfor %}
         {% endif %}
-   </body>
-   </html>
+    </div>
+
+    {% if error_message %}
+        <p class="error">Error: {{ error_message }}</p>
+    {% elif is_listing is defined and is_listing %}
+        <!-- Directory Listing View -->
+        <h1>Browsing: {{ current_path_display }}</h1>
+        {% if items %}
+            <ul class="item-list">
+                {% for item in items %}
+                    <li>
+                        {% if item.type == 'dir' %}
+                            <span class="item-icon dir-icon"></span>
+                            <a href="{{ url_for('browse_directory', sub_path=item.relative_path) }}">{{ item.display_name }}</a>
+                        {% elif item.is_md %}
+                            <span class="item-icon md-file-icon"></span>
+                            <a href="{{ url_for('view_file', file_rel_path=item.relative_path) }}">{{ item.display_name }}</a>
+                        {% else %}
+                             <span class="item-icon file-icon"></span>
+                            <span>{{ item.display_name }}</span> <!-- Non-MD files are listed but not clickable for viewing -->
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% elif current_path_display %} {# Added this condition to avoid "This directory is empty" on error pages #}
+            <p class="message">This directory is empty.</p>
+        {% endif %}
+
+    {% elif content is defined %}
+        <!-- File Content View -->
+        <h1>{{ file_display_name }}</h1>
+        <hr>
+        <div class="content-view">
+            {{ content | safe }}
+        </div>
+    {% else %}
+        <!-- Fallback / Initial state if no specific view is active -->
+        <h1>Markdown File Browser</h1>
+        <p class="message">Welcome! Navigate using the breadcrumbs or links.</p>
+        <p class="message">If you see this unexpectedly, check the server logs or ensure the root directory is configured correctly.</p>
+    {% endif %}
+</body>
+</html>
