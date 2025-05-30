@@ -1,0 +1,63 @@
+  <!DOCTYPE html>
+   <html>
+   <head>
+       <title>Markdown Book Viewer</title>
+       <style>
+           body { font-family: sans-serif; line-height: 1.6; padding: 20px; max-width: 900px; margin: auto; }
+           .content { border: 1px solid #ddd; padding: 15px; background-color: #f9f9f9; }
+           ul { list-style-type: none; padding: 0; }
+           li a { text-decoration: none; color: #007bff; display: block; padding: 8px 0; border-bottom: 1px solid #eee; }
+           li a:hover { background-color: #f0f0f0; }
+           .error { color: red; font-weight: bold; }
+           .message { color: #555; }
+           .back-link { margin-bottom: 15px; display: flex; }
+       </style>
+   </head>
+   <body>
+        {% if error_message %}
+            <p class="error">Error: {{ error_message }}</p>
+            {% if current_book_name %}
+                 <p><a href="{{ url_for('index') }}">&laquo; Back to Book List</a></p>
+            {% endif %}
+        {% elif content and current_book_name and current_filename %}
+            <!-- Viewing a file's content -->
+            <p class="back-link"><a href="{{ url_for('list_files_in_book', book_name=current_book_name) }}">&laquo; Back to book:  {{ book_display_name }}</a></p>
+            <p class="back-link"><a href="{{ url_for('index') }}">&laquo; Back to Book List</a></p>
+            <h1>{{ book_display_name }} / {{ file_display_name }}</h1>
+            <hr>
+            <div class="content">{{ content | safe }}</div>
+        {% elif files is defined and current_book_name %}
+            <!-- Listing files in a book -->
+            <p class="back-link"><a href="{{ url_for('index') }}">&laquo; Back to Book List</a></p>
+            <h1>Book: {{ book_display_name }}</h1>
+            {% if files %}
+                <ul>
+                    {% for file_entry in files %}
+                        <li><a href="{{ url_for('view_file', book_name=current_book_name, filename=file_entry.id) }}">{{ file_entry.name }}</a></li>
+                    {% endfor %}
+                </ul>
+            {% elif no_files_message %}
+                 <p class="message">{{ no_files_message }}</p>
+            {% else %}
+                 <p class="message">No Markdown files found in this book.</p>
+            {% endif %}
+        {% elif books is defined %}
+            <!-- Listing available books -->
+            <h1>Available Books</h1>
+            {% if books %}
+                <ul>
+                    {% for book_name_raw in books %}
+                        <li><a href="{{ url_for('list_files_in_book', book_name=book_name_raw) }}">{{ book_name_raw | replace("_", " ") | title }}</a></li>
+                    {% endfor %}
+                </ul>
+            {% elif no_books_message %}
+                 <p class="message">{{ no_books_message }}</p>
+            {% else %}
+                 <p class="message">No books found in the specified directory.</p>
+            {% endif %}
+        {% else %}
+            <h1>Markdown Book Viewer</h1>
+            <p class="message">Welcome! If you see this, something might be misconfigured, or no books were found.</p>
+        {% endif %}
+   </body>
+   </html>
