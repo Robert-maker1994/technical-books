@@ -1,6 +1,6 @@
 import os
 # Import the markdown2 library and abort for error handling
-from flask import Flask, render_template, abort, url_for, redirect
+from flask import Flask, render_template, abort, url_for, redirect, request, flash
 import markdown2
 
 # --- Configuration ---
@@ -45,6 +45,7 @@ if __name__ == "__main__":
         exit(1)
 
     app = Flask(__name__, template_folder='.')
+    app.secret_key = os.urandom(24)
     print(f"Serving content from: {base_serve_path}")
 
     # --- Routes ---
@@ -55,14 +56,13 @@ if __name__ == "__main__":
         """Handles listing contents of a directory."""
         current_relative_path = sub_path.strip('/')
         current_absolute_path = os.path.abspath(os.path.join(base_serve_path, current_relative_path))
-
+        markdown_file = os.path.isfile(current_absolute_path) and current_relative_path.lower().endswith(".md")
         # Security check: Ensure the requested path is within the base_serve_path
         if not current_absolute_path.startswith(base_serve_path):
             abort(403, "Access forbidden: Path is outside the allowed serving directory.")
         
         if not os.path.isdir(current_absolute_path):
-            # If it's a file, try to view it if it's markdown
-            if os.path.isfile(current_absolute_path) and current_relative_path.lower().endswith(".md"):
+            if markdown_file:
                 return redirect(url_for('view_file', file_rel_path=current_relative_path))
             abort(404, f"Directory not found: {format_display_name(current_relative_path)}")
 
@@ -96,6 +96,7 @@ if __name__ == "__main__":
             return render_template('index.html', 
                                    items=items, 
                                    current_path_display=current_dir_display_name,
+                                   current_dir_relative_path=current_relative_path, 
                                    breadcrumbs=breadcrumbs_list,
                                    is_listing=True)
 
@@ -139,10 +140,81 @@ if __name__ == "__main__":
             return render_template('index.html', 
                                    content=html_content, 
                                    file_display_name=format_display_name(os.path.basename(current_relative_path)),
+                                   current_file_relative_path=current_relative_path, # For 'Edit' link
                                    breadcrumbs=breadcrumbs_list,
                                    is_listing=False)
         except Exception as e:
             print(f"Error processing file '{file_absolute_path}': {e}")
             abort(500, "Error processing file.")
+
+    @app.route('/edit/<path:file_rel_path>', methods=['GET', 'POST'])
+    def edit_file(file_rel_path):
+        current_relative_path = file_rel_path.strip('/')
+
+        if ".." in current_relative_path.split('/'):
+            abort(400, "Invalid path component.")
+        
+        if not current_relative_path.lower().endswith(".md"):
+            abort(400, "Can only edit Markdown (.md) files.")
+
+        file_absolute_path = os.path.abspath(os.path.join(base_serve_path, current_relative_path))
+
+        if not file_absolute_path.startswith(base_serve_path):
+            abort(403, "Access forbidden: Path is outside the allowed serving directory.")
+
+       
+        if request.method == 'GET' and not os.path.isfile(file_absolute_path):
+            parent_dir_abs = os.path.dirname(file_absolute_path)
+            if not os.path.isdir(parent_dir_abs):
+                 abort(404, f"File or its parent directory not found: {format_display_name(current_relative_path)}")
+
+        if request.method == 'POST':
+            markdown_content = request.form.get('markdown_content', '')
+            try:
+                parent_dir = os.path.dirname(file_absolute_path)
+                if not os.path.exists(parent_dir):
+                    os.makedirs(parent_dir, exist_ok=True)
+
+                with open(file_absolute_path, 'w', encoding='utf-8') as f:
+                    f.write(markdown_content)
+                flash(f"File '{format_display_name(os.path.basename(current_relative_path))}' saved successfully!", "success")
+                return redirect(url_for('view_file', file_rel_path=current_relative_path))
+            except Exception as e:
+                print(f"Error saving file '{file_absolute_path}': {e}")
+                flash(f"Error saving file: {e}", "error")
+
+        raw_markdown_content = ""
+        if os.path.isfile(file_absolute_path):
+            try:
+                with open(file_absolute_path, 'r', encoding='utf-8') as f:
+                    raw_markdown_content = f.read()
+            except Exception as e:
+                print(f"Error reading file for edit '{file_absolute_path}': {e}")
+                flash(f"Error reading file for editing: {e}", "error")
+                # Potentially redirect or show an error page
+
+        parent_dir_relative_path = os.path.dirname(current_relative_path)
+        if parent_dir_relative_path == '.': parent_dir_relative_path = ''
+        breadcrumbs_list = generate_breadcrumbs(parent_dir_relative_path)
+
+        return render_template('index.html',
+                               raw_markdown_content=raw_markdown_content,
+                               file_display_name=format_display_name(os.path.basename(current_relative_path)),
+                               current_file_relative_path=current_relative_path,
+                               breadcrumbs=breadcrumbs_list,
+                               is_editing=True)
+
+    @app.route('/create_in/<path:dir_rel_path>', methods=['POST'])
+    def create_file_in_dir(dir_rel_path=""):
+        target_dir_relative_path = dir_rel_path.strip('/')
+        new_filename = request.form.get('new_filename', '').strip()
+
+        if not new_filename or not new_filename.lower().endswith(".md") or '/' in new_filename or '\\' in new_filename or ".." in new_filename:
+            flash("Invalid filename. Must end with .md and contain no slashes.", "error")
+            return redirect(url_for('browse_directory', sub_path=target_dir_relative_path))
+
+        new_file_relative_path = os.path.join(target_dir_relative_path, new_filename).replace(os.sep, '/')
+        flash(f"Creating new file: {format_display_name(new_filename)}. Add content and save.", "info")
+        return redirect(url_for('edit_file', file_rel_path=new_file_relative_path))
             
-    app.run(port=8080, debug=True)
+    app.run(port=2000, debug=True)

@@ -20,6 +20,14 @@
         .breadcrumbs a { color: #007bff; text-decoration: none; }
         .breadcrumbs a:hover { text-decoration: underline; }
         .breadcrumbs span:not(:last-child)::after { content: " / "; padding: 0 5px; color: #888; }
+        textarea.markdown-editor { width: 98%; min-height: 400px; font-family: monospace; padding: 10px; border: 1px solid #ccc; margin-top:10px; margin-bottom:10px;}
+        .action-buttons button, .action-buttons a { margin-right: 10px; padding: 8px 12px; text-decoration: none; border: 1px solid #ccc; background-color: #f0f0f0; color: #333; border-radius: 4px; cursor: pointer;}
+        .action-buttons button:hover, .action-buttons a:hover { background-color: #e0e0e0;}
+        .flash-messages { list-style-type: none; padding: 0; margin-bottom: 15px;}
+        .flash-messages li { padding: 10px; margin-bottom: 10px; border-radius: 4px; }
+        .flash-messages .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb;}
+        .flash-messages .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;}
+        .flash-messages .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb;}
     </style>
 </head>
 <body>
@@ -44,12 +52,24 @@
         {% endif %}
     </div>
 
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <ul class="flash-messages">
+            {% for category, message in messages %}
+                <li class="{{ category }}">{{ message }}</li>
+            {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+
     {% if error_message %}
         <p class="error">Error: {{ error_message }}</p>
     {% elif is_listing is defined and is_listing %}
         <!-- Directory Listing View -->
         <h1>Browsing: {{ current_path_display }}</h1>
         {% if items %}
+            <p>Total items: {{ items | length }}</p>
+        {% endif %}
             <ul class="item-list">
                 {% for item in items %}
                     <li>
@@ -66,16 +86,39 @@
                     </li>
                 {% endfor %}
             </ul>
-        {% elif current_path_display %} {# Added this condition to avoid "This directory is empty" on error pages #}
+        {% if not items and current_path_display %}
             <p class="message">This directory is empty.</p>
         {% endif %}
+        <div class="action-buttons" style="margin-top: 20px;">
+            <form method="POST" action="{{ url_for('create_file_in_dir', dir_rel_path=current_dir_relative_path if current_dir_relative_path else '') }}" style="display: inline-block;">
+                <input type="text" name="new_filename" placeholder="new_file_name.md" required pattern="^[^/\\]+\.md$" title="Filename must end with .md and contain no slashes.">
+                <button type="submit">Create New Markdown File</button>
+            </form>
+        </div>
 
     {% elif content is defined %}
         <!-- File Content View -->
         <h1>{{ file_display_name }}</h1>
+         <div class="action-buttons">
+            <a href="{{ url_for('edit_file', file_rel_path=current_file_relative_path) }}">Edit this file</a>
+        </div>
         <hr>
         <div class="content-view">
             {{ content | safe }}
+        </div>
+    
+    {% elif is_editing is defined and is_editing %}
+        <!-- File Editing View -->
+        <h1>Editing: {{ file_display_name }}</h1>
+        <form method="POST" action="{{ url_for('edit_file', file_rel_path=current_file_relative_path) }}">
+            <textarea name="markdown_content" class="markdown-editor">{{ raw_markdown_content }}</textarea>
+            <div class="action-buttons">
+                <button type="submit">Save Changes</button>
+                <a href="{{ url_for('view_file', file_rel_path=current_file_relative_path) }}">Cancel</a>
+            </div>
+        </form>
+        <div>
+            <p><strong>Note:</strong> If this is a new file, saving will create it. Parent directories will also be created if they don't exist.</p>
         </div>
     {% else %}
         <!-- Fallback / Initial state if no specific view is active -->
