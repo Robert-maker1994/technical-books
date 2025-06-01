@@ -20,7 +20,11 @@
         .breadcrumbs a { color: #007bff; text-decoration: none; }
         .breadcrumbs a:hover { text-decoration: underline; }
         .breadcrumbs span:not(:last-child)::after { content: " / "; padding: 0 5px; color: #888; }
-        textarea.markdown-editor { width: 98%; min-height: 400px; font-family: monospace; padding: 10px; border: 1px solid #ccc; margin-top:10px; margin-bottom:10px;}
+        textarea.markdown-editor {
+            width: 100%;
+            box-sizing: border-box; 
+            min-height: 400px; font-family: monospace; padding: 10px; border: 1px solid #ccc; margin-top:10px; margin-bottom:10px;
+        }
         .action-buttons button, .action-buttons a { margin-right: 10px; padding: 8px 12px; text-decoration: none; border: 1px solid #ccc; background-color: #f0f0f0; color: #333; border-radius: 4px; cursor: pointer;}
         .action-buttons button:hover, .action-buttons a:hover { background-color: #e0e0e0;}
         .flash-messages { list-style-type: none; padding: 0; margin-bottom: 15px;}
@@ -31,27 +35,17 @@
     </style>
 </head>
 <body>
-    <div class="breadcrumbs">
+    <nav class="breadcrumbs" aria-label="Breadcrumb">
         {% if breadcrumbs %}
             {% for crumb in breadcrumbs %}
                 <span>
-                    {# Link all breadcrumbs except the very last one if we are viewing a file #}
-                    {# For directory listing, all breadcrumbs are links #}
-                    {% if is_listing or not loop.last %}
-                        <a href="{{ url_for('browse_directory', sub_path=crumb.path) }}">{{ crumb.name }}</a>
-                    {% else %}
-                         {# Last breadcrumb when viewing a file (parent directory) should still be a link #}
-                         {% if not is_listing and loop.last %}
-                            <a href="{{ url_for('browse_directory', sub_path=crumb.path) }}">{{ crumb.name }}</a>
-                         {% else %}
-                            {{ crumb.name }} {# Should not happen often with current logic #}
-                         {% endif %}
-                    {% endif %}
+                    {# Assuming all breadcrumbs passed are navigable directory paths #}
+                    <a href="{{ url_for('browse_directory', sub_path=crumb.path) }}">{{ crumb.name }}</a>
                 </span>
             {% endfor %}
         {% endif %}
-    </div>
-
+    </nav>
+    
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             <ul class="flash-messages">
@@ -62,69 +56,71 @@
         {% endif %}
     {% endwith %}
 
-    {% if error_message %}
-        <p class="error">Error: {{ error_message }}</p>
-    {% elif is_listing is defined and is_listing %}
-        <!-- Directory Listing View -->
-        <h1>Browsing: {{ current_path_display }}</h1>
-        {% if items %}
-            <p>Total items: {{ items | length }}</p>
-        {% endif %}
-            <ul class="item-list">
-                {% for item in items %}
-                    <li>
-                        {% if item.type == 'dir' %}
-                            <span class="item-icon dir-icon"></span>
-                            <a href="{{ url_for('browse_directory', sub_path=item.relative_path) }}">{{ item.display_name }}</a>
-                        {% elif item.is_md %}
-                            <span class="item-icon md-file-icon"></span>
-                            <a href="{{ url_for('view_file', file_rel_path=item.relative_path) }}">{{ item.display_name }}</a>
-                        {% else %}
-                             <span class="item-icon file-icon"></span>
-                            <span>{{ item.display_name }}</span> <!-- Non-MD files are listed but not clickable for viewing -->
-                        {% endif %}
-                    </li>
-                {% endfor %}
-            </ul>
-        {% if not items and current_path_display %}
-            <p class="message">This directory is empty.</p>
-        {% endif %}
-        <div class="action-buttons" style="margin-top: 20px;">
-            <form method="POST" action="{{ url_for('create_file_in_dir', dir_rel_path=current_dir_relative_path if current_dir_relative_path else '') }}" style="display: inline-block;">
-                <input type="text" name="new_filename" placeholder="new_file_name.md" required pattern="^[^/\\]+\.md$" title="Filename must end with .md and contain no slashes.">
-                <button type="submit">Create New Markdown File</button>
-            </form>
-        </div>
-
-    {% elif content is defined %}
-        <!-- File Content View -->
-        <h1>{{ file_display_name }}</h1>
-         <div class="action-buttons">
-            <a href="{{ url_for('edit_file', file_rel_path=current_file_relative_path) }}">Edit this file</a>
-        </div>
-        <hr>
-        <div class="content-view">
-            {{ content | safe }}
-        </div>
-    
-    {% elif is_editing is defined and is_editing %}
-        <!-- File Editing View -->
-        <h1>Editing: {{ file_display_name }}</h1>
-        <form method="POST" action="{{ url_for('edit_file', file_rel_path=current_file_relative_path) }}">
-            <textarea name="markdown_content" class="markdown-editor">{{ raw_markdown_content }}</textarea>
-            <div class="action-buttons">
-                <button type="submit">Save Changes</button>
-                <a href="{{ url_for('view_file', file_rel_path=current_file_relative_path) }}">Cancel</a>
+    <main>
+        {% if error_message %}
+            <p class="error">Error: {{ error_message }}</p>
+        {% elif is_listing is defined and is_listing %}
+            <!-- Directory Listing View -->
+            <h1>Browsing: {{ current_path_display }}</h1>
+            {% if items %}
+                <p>Total items: {{ items | length }}</p>
+            {% endif %}
+                <ul class="item-list">
+                    {% for item in items %}
+                        <li>
+                            {% if item.type == 'dir' %}
+                                <span class="item-icon dir-icon" aria-hidden="true"></span>
+                                <a href="{{ url_for('browse_directory', sub_path=item.relative_path) }}">{{ item.display_name }}</a>
+                            {% elif item.is_md %}
+                                <span class="item-icon md-file-icon" aria-hidden="true"></span>
+                                <a href="{{ url_for('view_file', file_rel_path=item.relative_path) }}">{{ item.display_name }}</a>
+                            {% else %}
+                                 <span class="item-icon file-icon" aria-hidden="true"></span>
+                                <span>{{ item.display_name }}</span> <!-- Non-MD files are listed but not clickable for viewing -->
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% if not items and current_path_display %}
+                <p class="message">This directory is empty.</p>
+            {% endif %}
+            <div class="action-buttons" style="margin-top: 20px;">
+                <form method="POST" action="{{ url_for('create_file_in_dir', dir_rel_path=current_dir_relative_path if current_dir_relative_path else '') }}" style="display: inline-block;">
+                    <input type="text" name="new_filename" placeholder="new_file_name.md" required pattern="^[^/\\]+\.md$" title="Filename must end with .md and contain no slashes.">
+                    <button type="submit">Create New Markdown File</button>
+                </form>
             </div>
-        </form>
-        <div>
-            <p><strong>Note:</strong> If this is a new file, saving will create it. Parent directories will also be created if they don't exist.</p>
-        </div>
-    {% else %}
-        <!-- Fallback / Initial state if no specific view is active -->
-        <h1>Markdown File Browser</h1>
-        <p class="message">Welcome! Navigate using the breadcrumbs or links.</p>
-        <p class="message">If you see this unexpectedly, check the server logs or ensure the root directory is configured correctly.</p>
-    {% endif %}
+
+        {% elif content is defined %}
+            <!-- File Content View -->
+            <h1>{{ file_display_name }}</h1>
+             <div class="action-buttons">
+                <a href="{{ url_for('edit_file', file_rel_path=current_file_relative_path) }}">Edit this file</a>
+            </div>
+            <hr>
+            <div class="content-view">
+                {{ content | safe }}
+            </div>
+        
+        {% elif is_editing is defined and is_editing %}
+            <!-- File Editing View -->
+            <h1>Editing: {{ file_display_name }}</h1>
+            <form method="POST" action="{{ url_for('edit_file', file_rel_path=current_file_relative_path) }}">
+                <textarea name="markdown_content" class="markdown-editor">{{ raw_markdown_content }}</textarea>
+                <div class="action-buttons">
+                    <button type="submit">Save Changes</button>
+                    <a href="{{ url_for('view_file', file_rel_path=current_file_relative_path) }}">Cancel</a>
+                </div>
+            </form>
+            <div>
+                <p><strong>Note:</strong> If this is a new file, saving will create it. Parent directories will also be created if they don't exist.</p>
+            </div>
+        {% else %}
+            <!-- Fallback / Initial state if no specific view is active -->
+            <h1>Markdown File Browser</h1>
+            <p class="message">Welcome! Navigate using the breadcrumbs or links.</p>
+            <p class="message">If you see this unexpectedly, check the server logs or ensure the root directory is configured correctly.</p>
+        {% endif %}
+    </main>
 </body>
 </html>

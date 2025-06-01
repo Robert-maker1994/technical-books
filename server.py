@@ -5,7 +5,7 @@ import markdown2
 
 # --- Configuration ---
 ROOT_BROWSABLE_DIR_NAME = "."
-IGNORE_ITEMS = [".git", ".vscode", "__pycache__", "venv", ".venv", "node_modules", "server.py", "index.html", "README.md"] 
+IGNORE_ITEMS = [".git", ".png", ".vscode", "__pycache__", "venv", ".venv", "node_modules", "server.py", "index.html", "README.md"] 
 # --- End Configuration ---
 
 # --- Helper Functions ---
