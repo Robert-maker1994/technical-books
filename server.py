@@ -5,7 +5,7 @@ import markdown2
 
 # --- Configuration ---
 ROOT_BROWSABLE_DIR_NAME = "."
-IGNORE_ITEMS = [".git", ".png", ".vscode", "__pycache__", "venv", ".venv", "node_modules", "server.py", "index.html", "README.md"] 
+IGNORE_ITEMS = [".git", ".png", ".vscode", "__pycache__", "venv", ".venv", "node_modules", "server.py", "index.html", "README.md", "Markdownfilebrowser.Spec"] 
 # --- End Configuration ---
 
 # --- Helper Functions ---
@@ -131,7 +131,6 @@ if __name__ == "__main__":
             
             html_content = markdown2.markdown(md_content, extras=["fenced-code-blocks", "tables", "strike", "footnotes"])
             
-            # Generate breadcrumbs for the *directory* containing the file
             parent_dir_relative_path = os.path.dirname(current_relative_path)
             if parent_dir_relative_path == '.': # Handle files in root
                 parent_dir_relative_path = ''
